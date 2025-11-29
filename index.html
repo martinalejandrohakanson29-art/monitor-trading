@@ -121,37 +121,63 @@
                 };
             }
 
-            // 3. ANÁLISIS DE DATOS (Loop de 3 segundos)
+          // 3. ANÁLISIS DE DATOS MEJORADO (CON FILTRO DE RUIDO)
             setInterval(async () => {
                 try {
-                    // A. ORDER BOOK (Ahora miramos 1000 niveles de profundidad para hallar ballenas reales)
+                    // A. ORDER BOOK (Profundidad 1000)
                     const depthRes = await fetch('https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=1000');
                     const depth = await depthRes.json();
                     
-                    let bestBid = {p:0, v:0}, bestAsk = {p:0, v:0};
+                    // Calculamos precio referencia (aprox)
+                    const currentPrice = parseFloat(depth.bids[0][0]);
                     
-                    // Filtro: Ignoramos volumenes pequeños, buscamos el outlier masivo
+                    // --- FILTRO DE RUIDO ---
+                    // Ignoramos muros que estén a menos del 0.3% de distancia del precio
+                    // En BTC a 90k, esto ignora lo que esté a menos de $270 de distancia (ruido)
+                    const minDistance = currentPrice * 0.003; 
+
+                    let bestBid = {p:0, v:0};
+                    let bestAsk = {p:0, v:0};
+                    
+                    // Buscar Muro de Compra (Bids) LEJOS del precio
                     depth.bids.forEach(b => { 
-                        if(parseFloat(b[1]) > bestBid.v) bestBid = {p: parseFloat(b[0]), v: parseFloat(b[1])} 
-                    });
-                    depth.asks.forEach(a => { 
-                        if(parseFloat(a[1]) > bestAsk.v) bestAsk = {p: parseFloat(a[0]), v: parseFloat(a[1])} 
+                        const p = parseFloat(b[0]);
+                        const v = parseFloat(b[1]);
+                        // Solo miramos si está "abajo" de la zona de ruido
+                        if (p < (currentPrice - minDistance)) {
+                            if(v > bestBid.v) bestBid = {p: p, v: v};
+                        }
                     });
 
+                    // Buscar Muro de Venta (Asks) LEJOS del precio
+                    depth.asks.forEach(a => { 
+                        const p = parseFloat(a[0]);
+                        const v = parseFloat(a[1]);
+                        // Solo miramos si está "arriba" de la zona de ruido
+                        if (p > (currentPrice + minDistance)) {
+                            if(v > bestAsk.v) bestAsk = {p: p, v: v};
+                        }
+                    });
+
+                    // Actualizar Panel
                     document.getElementById('wall-buy-price').innerText = bestBid.p.toFixed(2);
                     document.getElementById('wall-buy-vol').innerText = bestBid.v.toFixed(2) + " BTC";
                     document.getElementById('wall-sell-price').innerText = bestAsk.p.toFixed(2);
                     document.getElementById('wall-sell-vol').innerText = bestAsk.v.toFixed(2) + " BTC";
 
-                    // Dibujar lineas
+                    // Dibujar lineas (Solo si encontramos muros válidos)
                     if(buyWallLine) candleSeries.removePriceLine(buyWallLine);
                     if(sellWallLine) candleSeries.removePriceLine(sellWallLine);
                     
-                    buyWallLine = candleSeries.createPriceLine({ price: bestBid.p, color: '#0ecb81', lineWidth: 2, lineStyle: 2, title: `MURO COMPRA (${bestBid.v.toFixed(1)} BTC)` });
-                    sellWallLine = candleSeries.createPriceLine({ price: bestAsk.p, color: '#f6465d', lineWidth: 2, lineStyle: 2, title: `MURO VENTA (${bestAsk.v.toFixed(1)} BTC)` });
+                    if (bestBid.v > 0) {
+                        buyWallLine = candleSeries.createPriceLine({ price: bestBid.p, color: '#0ecb81', lineWidth: 2, lineStyle: 2, title: `MURO COMPRA (${bestBid.v.toFixed(1)} BTC)` });
+                    }
+                    if (bestAsk.v > 0) {
+                        sellWallLine = candleSeries.createPriceLine({ price: bestAsk.p, color: '#f6465d', lineWidth: 2, lineStyle: 2, title: `MURO VENTA (${bestAsk.v.toFixed(1)} BTC)` });
+                    }
 
-                    // B. PRESIÓN (Trades)
-                    const tradesRes = await fetch('https://api.binance.com/api/v3/trades?symbol=BTCUSDT&limit=500'); // Analizamos 500 trades
+                    // B. PRESIÓN (Trades) - Esto sigue igual
+                    const tradesRes = await fetch('https://api.binance.com/api/v3/trades?symbol=BTCUSDT&limit=500');
                     const trades = await tradesRes.json();
                     
                     let buyVol = 0, sellVol = 0;
@@ -168,12 +194,11 @@
                     else if(pressure < 40) { pVal.className = "metric-value color-down"; document.getElementById('pressure-text').innerText = "BAJISTA"; }
                     else { pVal.className = "metric-value color-neutral"; document.getElementById('pressure-text').innerText = "Neutral"; }
 
-                } catch(e) {
-                   console.log(e);
-                }
+                } catch(e) { console.log(e); }
             }, 3000);
         }
     </script>
 </body>
 </html>
+
 
