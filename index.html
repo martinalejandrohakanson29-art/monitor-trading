@@ -121,43 +121,38 @@
                 };
             }
 
-          // 3. ANÁLISIS DE DATOS MEJORADO (CON FILTRO DE RUIDO)
+         // 3. ANÁLISIS DE DATOS (Corrección "Skip Rows")
             setInterval(async () => {
                 try {
                     // A. ORDER BOOK (Profundidad 1000)
                     const depthRes = await fetch('https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=1000');
                     const depth = await depthRes.json();
                     
-                    // Calculamos precio referencia (aprox)
-                    const currentPrice = parseFloat(depth.bids[0][0]);
-                    
-                    // --- FILTRO DE RUIDO ---
-                    // Ignoramos muros que estén a menos del 0.3% de distancia del precio
-                    // En BTC a 90k, esto ignora lo que esté a menos de $270 de distancia (ruido)
-                    const minDistance = currentPrice * 0.003; 
-
                     let bestBid = {p:0, v:0};
                     let bestAsk = {p:0, v:0};
                     
-                    // Buscar Muro de Compra (Bids) LEJOS del precio
-                    depth.bids.forEach(b => { 
-                        const p = parseFloat(b[0]);
-                        const v = parseFloat(b[1]);
-                        // Solo miramos si está "abajo" de la zona de ruido
-                        if (p < (currentPrice - minDistance)) {
+                    // CONFIGURACIÓN: Cuántas filas ignorar (Ruido del Spread)
+                    // Saltamos las primeras 25 órdenes más cercanas.
+                    const SKIP_ROWS = 25; 
+
+                    // Buscar Mejor Compra (Bids) saltando el ruido inicial
+                    // Validamos que haya suficientes datos antes de iterar
+                    if (depth.bids && depth.bids.length > SKIP_ROWS) {
+                        for(let i = SKIP_ROWS; i < depth.bids.length; i++) {
+                            const p = parseFloat(depth.bids[i][0]);
+                            const v = parseFloat(depth.bids[i][1]);
                             if(v > bestBid.v) bestBid = {p: p, v: v};
                         }
-                    });
+                    }
 
-                    // Buscar Muro de Venta (Asks) LEJOS del precio
-                    depth.asks.forEach(a => { 
-                        const p = parseFloat(a[0]);
-                        const v = parseFloat(a[1]);
-                        // Solo miramos si está "arriba" de la zona de ruido
-                        if (p > (currentPrice + minDistance)) {
+                    // Buscar Mejor Venta (Asks) saltando el ruido inicial
+                    if (depth.asks && depth.asks.length > SKIP_ROWS) {
+                        for(let i = SKIP_ROWS; i < depth.asks.length; i++) {
+                            const p = parseFloat(depth.asks[i][0]);
+                            const v = parseFloat(depth.asks[i][1]);
                             if(v > bestAsk.v) bestAsk = {p: p, v: v};
                         }
-                    });
+                    }
 
                     // Actualizar Panel
                     document.getElementById('wall-buy-price').innerText = bestBid.p.toFixed(2);
@@ -176,7 +171,7 @@
                         sellWallLine = candleSeries.createPriceLine({ price: bestAsk.p, color: '#f6465d', lineWidth: 2, lineStyle: 2, title: `MURO VENTA (${bestAsk.v.toFixed(1)} BTC)` });
                     }
 
-                    // B. PRESIÓN (Trades) - Esto sigue igual
+                    // B. PRESIÓN (Trades) - Sin cambios
                     const tradesRes = await fetch('https://api.binance.com/api/v3/trades?symbol=BTCUSDT&limit=500');
                     const trades = await tradesRes.json();
                     
@@ -200,5 +195,6 @@
     </script>
 </body>
 </html>
+
 
 
