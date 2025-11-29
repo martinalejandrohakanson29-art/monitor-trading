@@ -124,13 +124,19 @@
             // 3. ANÁLISIS DE DATOS (Loop de 3 segundos)
             setInterval(async () => {
                 try {
-                    // Order Book
-                    const depthRes = await fetch('https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=20');
+                    // A. ORDER BOOK (Ahora miramos 1000 niveles de profundidad para hallar ballenas reales)
+                    const depthRes = await fetch('https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=1000');
                     const depth = await depthRes.json();
                     
                     let bestBid = {p:0, v:0}, bestAsk = {p:0, v:0};
-                    depth.bids.forEach(b => { if(parseFloat(b[1]) > bestBid.v) bestBid = {p: parseFloat(b[0]), v: parseFloat(b[1])} });
-                    depth.asks.forEach(a => { if(parseFloat(a[1]) > bestAsk.v) bestAsk = {p: parseFloat(a[0]), v: parseFloat(a[1])} });
+                    
+                    // Filtro: Ignoramos volumenes pequeños, buscamos el outlier masivo
+                    depth.bids.forEach(b => { 
+                        if(parseFloat(b[1]) > bestBid.v) bestBid = {p: parseFloat(b[0]), v: parseFloat(b[1])} 
+                    });
+                    depth.asks.forEach(a => { 
+                        if(parseFloat(a[1]) > bestAsk.v) bestAsk = {p: parseFloat(a[0]), v: parseFloat(a[1])} 
+                    });
 
                     document.getElementById('wall-buy-price').innerText = bestBid.p.toFixed(2);
                     document.getElementById('wall-buy-vol').innerText = bestBid.v.toFixed(2) + " BTC";
@@ -141,11 +147,11 @@
                     if(buyWallLine) candleSeries.removePriceLine(buyWallLine);
                     if(sellWallLine) candleSeries.removePriceLine(sellWallLine);
                     
-                    buyWallLine = candleSeries.createPriceLine({ price: bestBid.p, color: '#0ecb81', lineWidth: 2, lineStyle: 2, title: 'MURO COMPRA' });
-                    sellWallLine = candleSeries.createPriceLine({ price: bestAsk.p, color: '#f6465d', lineWidth: 2, lineStyle: 2, title: 'MURO VENTA' });
+                    buyWallLine = candleSeries.createPriceLine({ price: bestBid.p, color: '#0ecb81', lineWidth: 2, lineStyle: 2, title: `MURO COMPRA (${bestBid.v.toFixed(1)} BTC)` });
+                    sellWallLine = candleSeries.createPriceLine({ price: bestAsk.p, color: '#f6465d', lineWidth: 2, lineStyle: 2, title: `MURO VENTA (${bestAsk.v.toFixed(1)} BTC)` });
 
-                    // Presión (Trades)
-                    const tradesRes = await fetch('https://api.binance.com/api/v3/trades?symbol=BTCUSDT&limit=100');
+                    // B. PRESIÓN (Trades)
+                    const tradesRes = await fetch('https://api.binance.com/api/v3/trades?symbol=BTCUSDT&limit=500'); // Analizamos 500 trades
                     const trades = await tradesRes.json();
                     
                     let buyVol = 0, sellVol = 0;
@@ -163,10 +169,11 @@
                     else { pVal.className = "metric-value color-neutral"; document.getElementById('pressure-text').innerText = "Neutral"; }
 
                 } catch(e) {
-                   // Silencio errores menores de fetch
+                   console.log(e);
                 }
             }, 3000);
         }
     </script>
 </body>
 </html>
+
