@@ -3,39 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estrategia Muro + Martillo | BTCUSDT</title>
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <title>Estrategia Muro + Martillo | V2.0</title>
+    <script src="https://unpkg.com/lightweight-charts@4.0.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
-        /* ESTILOS (DISEÑO VISUAL) */
-        body { background-color: #0e0e10; color: #d1d4dc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; }
-        
-        /* CABECERA CON DATOS */
+        body { background-color: #0e0e10; color: #d1d4dc; font-family: sans-serif; margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; }
         .dashboard-header { display: flex; padding: 10px 20px; background: #181b21; border-bottom: 1px solid #2a2e39; gap: 15px; flex-wrap: wrap; justify-content: space-between; align-items: center;}
-        
         .metric-card { background: #222631; padding: 10px 15px; border-radius: 6px; min-width: 140px; display: flex; flex-direction: column; justify-content: center; }
         .metric-title { font-size: 11px; color: #848e9c; text-transform: uppercase; font-weight: 600; margin-bottom: 4px; }
         .metric-value { font-size: 18px; font-weight: bold; letter-spacing: 0.5px; }
         .metric-sub { font-size: 11px; margin-top: 2px; opacity: 0.8; }
-
-        /* COLORES */
-        .color-up { color: #0ecb81; } /* Verde Binance */
-        .color-down { color: #f6465d; } /* Rojo Binance */
+        .color-up { color: #0ecb81; } 
+        .color-down { color: #f6465d; } 
         .color-neutral { color: #d1d4dc; }
-
-        /* GRÁFICO */
         #chart-container { flex-grow: 1; width: 100%; position: relative; }
-        
-        /* ESTADO DE CONEXIÓN */
-        .status-dot { height: 8px; width: 8px; background-color: #555; border-radius: 50%; display: inline-block; margin-right: 5px; }
-        .status-active { background-color: #0ecb81; box-shadow: 0 0 5px #0ecb81; }
+        #debug-console { padding: 5px; font-size: 10px; color: #555; background: #000; text-align: center; }
     </style>
 </head>
 <body>
 
     <div class="dashboard-header">
         <div style="display:flex; align-items:center;">
-            <span id="ws-status" class="status-dot"></span>
-            <span style="font-weight:bold; font-size:14px;">BTC/USDT</span>
+            <span style="font-weight:bold; font-size:14px; color: gold;">BTC/USDT</span>
         </div>
 
         <div class="metric-card">
@@ -46,194 +34,139 @@
         <div class="metric-card">
             <span class="metric-title">Presión (Trades)</span>
             <span class="metric-value" id="pressure-val">---%</span>
-            <span class="metric-sub" id="pressure-text">Analizando...</span>
+            <span class="metric-sub" id="pressure-text">Esperando datos...</span>
         </div>
 
         <div class="metric-card" style="border-bottom: 2px solid #0ecb81;">
             <span class="metric-title">Muro Compras</span>
             <span class="metric-value color-up" id="wall-buy-price">---</span>
-            <span class="metric-sub" id="wall-buy-vol">Vol: --- BTC</span>
+            <span class="metric-sub" id="wall-buy-vol">---</span>
         </div>
 
         <div class="metric-card" style="border-bottom: 2px solid #f6465d;">
             <span class="metric-title">Muro Ventas</span>
             <span class="metric-value color-down" id="wall-sell-price">---</span>
-            <span class="metric-sub" id="wall-sell-vol">Vol: --- BTC</span>
+            <span class="metric-sub" id="wall-sell-vol">---</span>
         </div>
     </div>
 
     <div id="chart-container"></div>
+    <div id="debug-console">Inicializando sistema...</div>
 
     <script>
-        // --- CONFIGURACIÓN INICIAL ---
-        const domElement = document.getElementById('chart-container');
-        const chart = LightweightCharts.createChart(domElement, {
-            layout: { background: { color: '#0e0e10' }, textColor: '#848e9c' },
-            grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
-            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-            timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#2a2e39' },
-            rightPriceScale: { borderColor: '#2a2e39' },
-        });
+        // --- FUNCIÓN DE DEBUGGING ---
+        function logStatus(msg) {
+            document.getElementById('debug-console').innerText = msg;
+            console.log(msg);
+        }
 
-        // 1. Serie de Velas
-        const candleSeries = chart.addCandlestickSeries({
-            upColor: '#0ecb81', downColor: '#f6465d', borderDownColor: '#f6465d', borderUpColor: '#0ecb81', wickDownColor: '#f6465d', wickUpColor: '#0ecb81',
-        });
+        // --- VERIFICAR LIBRERÍA ---
+        if (typeof LightweightCharts === 'undefined') {
+            logStatus("ERROR CRÍTICO: La librería de gráficos no cargó. Revisa tu conexión.");
+        } else {
+            initChart();
+        }
 
-        // 2. Serie VWAP
-        const vwapSeries = chart.addLineSeries({ color: '#5d606b', lineWidth: 2, title: 'VWAP' }); // Gris azulado para no distraer
+        function initChart() {
+            logStatus("Iniciando gráficos...");
+            
+            const domElement = document.getElementById('chart-container');
+            const chart = LightweightCharts.createChart(domElement, {
+                layout: { background: { color: '#0e0e10' }, textColor: '#848e9c' },
+                grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
+                timeScale: { timeVisible: true, secondsVisible: false },
+            });
 
-        // Ajustar tamaño al cambiar ventana
-        window.addEventListener('resize', () => { chart.resize(domElement.clientWidth, domElement.clientHeight); });
+            const candleSeries = chart.addCandlestickSeries({
+                upColor: '#0ecb81', downColor: '#f6465d', borderDownColor: '#f6465d', borderUpColor: '#0ecb81',
+            });
 
-        // Variables Globales
-        let buyWallLine = null;
-        let sellWallLine = null;
-        
-        // --- LÓGICA DE DATOS ---
+            // Variables para muros
+            let buyWallLine = null;
+            let sellWallLine = null;
 
-        // A. Cargar Historial (Últimas 200 velas de 1 minuto)
-        async function loadHistory() {
-            try {
-                const res = await fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=200');
-                const data = await res.json();
-                
-                let vwapCumVol = 0;
-                let vwapCumPriceVol = 0;
+            window.addEventListener('resize', () => { chart.resize(domElement.clientWidth, domElement.clientHeight); });
 
-                const candles = data.map(d => {
-                    const h = parseFloat(d[2]), l = parseFloat(d[3]), c = parseFloat(d[4]), v = parseFloat(d[5]);
-                    
-                    // Cálculo VWAP básico para esta sesión
-                    const typicalPrice = (h + l + c) / 3;
-                    vwapCumPriceVol += typicalPrice * v;
-                    vwapCumVol += v;
-                    
-                    return {
+            // 1. CARGAR HISTORIAL
+            fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100')
+                .then(res => res.json())
+                .then(data => {
+                    logStatus("Historial cargado. Conectando WebSocket...");
+                    const candles = data.map(d => ({
                         time: d[0] / 1000,
-                        open: parseFloat(d[1]), high: h, low: l, close: c,
-                        volume: v,
-                        vwap: vwapCumPriceVol / vwapCumVol
-                    };
+                        open: parseFloat(d[1]), high: parseFloat(d[2]), low: parseFloat(d[3]), close: parseFloat(d[4])
+                    }));
+                    candleSeries.setData(candles);
+                    startWebSocket(); // Iniciar tiempo real solo si carga el historial
+                })
+                .catch(err => {
+                    logStatus("Error cargando historial (CORS o Red). Intentando conexión directa...");
+                    startWebSocket(); // Intentar conectar aunque falle el historial
                 });
 
-                // Dibujar historial
-                candleSeries.setData(candles);
-                vwapSeries.setData(candles.map(c => ({ time: c.time, value: c.vwap })));
+            // 2. WEBSOCKET (TIEMPO REAL)
+            function startWebSocket() {
+                const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@kline_1m');
                 
-                // Iniciar Websocket después de cargar historial
-                startWebSocket();
-            } catch (err) {
-                console.error("Error cargando historial:", err);
-            }
-        }
-
-        // B. Conexión en Vivo (WebSocket)
-        function startWebSocket() {
-            const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@kline_1m');
-            
-            ws.onopen = () => { document.getElementById('ws-status').classList.add('status-active'); };
-            
-            ws.onmessage = (event) => {
-                const msg = JSON.parse(event.data);
-                const k = msg.k;
+                ws.onopen = () => { logStatus("Sistema Online - Recibiendo datos de Binance"); };
                 
-                const candle = {
-                    time: k.t / 1000,
-                    open: parseFloat(k.o), high: parseFloat(k.h), low: parseFloat(k.l), close: parseFloat(k.c)
+                ws.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    const k = msg.k;
+                    candleSeries.update({
+                        time: k.t / 1000,
+                        open: parseFloat(k.o), high: parseFloat(k.h), low: parseFloat(k.l), close: parseFloat(k.c)
+                    });
+                    document.getElementById('price').innerText = parseFloat(k.c).toFixed(2);
                 };
-                
-                candleSeries.update(candle);
-                document.getElementById('price').innerText = parseFloat(k.c).toFixed(2);
-                
-                // Nota: El VWAP en tiempo real tick-a-tick requiere lógica compleja de acumulación, 
-                // para mantenerlo simple, la línea se actualizará con cada vela nueva cerrada.
-            };
-        }
-
-        // C. El Cerebro: Analizar Muros y Presión (API Loop)
-        async function analyzeMarket() {
-            try {
-                // 1. OBTENER LIBRO DE ÓRDENES (Muros)
-                const depthRes = await fetch('https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=100');
-                const depth = await depthRes.json();
-
-                // Buscar el precio con más volumen acumulado (Muro)
-                let bestBid = { p: 0, v: 0 };
-                let bestAsk = { p: 0, v: 0 };
-
-                depth.bids.forEach(bid => {
-                    const vol = parseFloat(bid[1]);
-                    if(vol > bestBid.v) bestBid = { p: parseFloat(bid[0]), v: vol };
-                });
-                
-                depth.asks.forEach(ask => {
-                    const vol = parseFloat(ask[1]);
-                    if(vol > bestAsk.v) bestAsk = { p: parseFloat(ask[0]), v: vol };
-                });
-
-                // Actualizar Panel
-                document.getElementById('wall-buy-price').innerText = bestBid.p.toFixed(2);
-                document.getElementById('wall-buy-vol').innerText = bestBid.v.toFixed(2) + " BTC";
-                
-                document.getElementById('wall-sell-price').innerText = bestAsk.p.toFixed(2);
-                document.getElementById('wall-sell-vol').innerText = bestAsk.v.toFixed(2) + " BTC";
-
-                // Dibujar líneas en gráfico
-                if(buyWallLine) candleSeries.removePriceLine(buyWallLine);
-                if(sellWallLine) candleSeries.removePriceLine(sellWallLine);
-
-                buyWallLine = candleSeries.createPriceLine({
-                    price: bestBid.p, color: '#0ecb81', lineWidth: 2, lineStyle: 2, title: `MURO COMPRA (${bestBid.v.toFixed(1)})`
-                });
-
-                sellWallLine = candleSeries.createPriceLine({
-                    price: bestAsk.p, color: '#f6465d', lineWidth: 2, lineStyle: 2, title: `MURO VENTA (${bestAsk.v.toFixed(1)})`
-                });
-
-                // 2. OBTENER TRADES RECIENTES (Presión)
-                const tradesRes = await fetch('https://api.binance.com/api/v3/trades?symbol=BTCUSDT&limit=500'); // Más datos para mejor muestra
-                const trades = await tradesRes.json();
-
-                let buyPressureVol = 0;
-                let sellPressureVol = 0;
-
-                trades.forEach(t => {
-                    const usdtVal = parseFloat(t.qty) * parseFloat(t.price);
-                    if (t.isBuyerMaker === false) { 
-                        buyPressureVol += usdtVal; // Taker Buy (Agresivo)
-                    } else {
-                        sellPressureVol += usdtVal; // Taker Sell (Agresivo)
-                    }
-                });
-
-                const totalVol = buyPressureVol + sellPressureVol;
-                const buyPercent = (buyPressureVol / totalVol) * 100;
-
-                const pressVal = document.getElementById('pressure-val');
-                const pressText = document.getElementById('pressure-text');
-
-                pressVal.innerText = buyPercent.toFixed(1) + "%";
-                
-                if (buyPercent > 60) {
-                    pressVal.className = "metric-value color-up";
-                    pressText.innerText = "ALCISTA (Compradores Agresivos)";
-                } else if (buyPercent < 40) {
-                    pressVal.className = "metric-value color-down";
-                    pressText.innerText = "BAJISTA (Vendedores Agresivos)";
-                } else {
-                    pressVal.className = "metric-value color-neutral";
-                    pressText.innerText = "Neutral / Indecisión";
-                }
-
-            } catch (e) {
-                console.log("Esperando datos...", e);
             }
-        }
 
-        // INICIAR TODO
-        loadHistory();
-        setInterval(analyzeMarket, 3000); // Actualizar análisis cada 3 segundos
+            // 3. ANÁLISIS DE DATOS (Loop de 3 segundos)
+            setInterval(async () => {
+                try {
+                    // Order Book
+                    const depthRes = await fetch('https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=20');
+                    const depth = await depthRes.json();
+                    
+                    let bestBid = {p:0, v:0}, bestAsk = {p:0, v:0};
+                    depth.bids.forEach(b => { if(parseFloat(b[1]) > bestBid.v) bestBid = {p: parseFloat(b[0]), v: parseFloat(b[1])} });
+                    depth.asks.forEach(a => { if(parseFloat(a[1]) > bestAsk.v) bestAsk = {p: parseFloat(a[0]), v: parseFloat(a[1])} });
+
+                    document.getElementById('wall-buy-price').innerText = bestBid.p.toFixed(2);
+                    document.getElementById('wall-buy-vol').innerText = bestBid.v.toFixed(2) + " BTC";
+                    document.getElementById('wall-sell-price').innerText = bestAsk.p.toFixed(2);
+                    document.getElementById('wall-sell-vol').innerText = bestAsk.v.toFixed(2) + " BTC";
+
+                    // Dibujar lineas
+                    if(buyWallLine) candleSeries.removePriceLine(buyWallLine);
+                    if(sellWallLine) candleSeries.removePriceLine(sellWallLine);
+                    
+                    buyWallLine = candleSeries.createPriceLine({ price: bestBid.p, color: '#0ecb81', lineWidth: 2, lineStyle: 2, title: 'MURO COMPRA' });
+                    sellWallLine = candleSeries.createPriceLine({ price: bestAsk.p, color: '#f6465d', lineWidth: 2, lineStyle: 2, title: 'MURO VENTA' });
+
+                    // Presión (Trades)
+                    const tradesRes = await fetch('https://api.binance.com/api/v3/trades?symbol=BTCUSDT&limit=100');
+                    const trades = await tradesRes.json();
+                    
+                    let buyVol = 0, sellVol = 0;
+                    trades.forEach(t => {
+                        let val = parseFloat(t.qty) * parseFloat(t.price);
+                        if(t.isBuyerMaker === false) buyVol += val; else sellVol += val;
+                    });
+                    
+                    let pressure = (buyVol / (buyVol + sellVol)) * 100;
+                    const pVal = document.getElementById('pressure-val');
+                    pVal.innerText = pressure.toFixed(1) + "%";
+                    
+                    if(pressure > 60) { pVal.className = "metric-value color-up"; document.getElementById('pressure-text').innerText = "ALCISTA"; }
+                    else if(pressure < 40) { pVal.className = "metric-value color-down"; document.getElementById('pressure-text').innerText = "BAJISTA"; }
+                    else { pVal.className = "metric-value color-neutral"; document.getElementById('pressure-text').innerText = "Neutral"; }
+
+                } catch(e) {
+                   // Silencio errores menores de fetch
+                }
+            }, 3000);
+        }
     </script>
 </body>
 </html>
